@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NEXA — Estimation Biomasse Pâturages</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --vert:       #1B4332;
+      --vert-moyen: #2D6A4F;
+      --vert-clair: #D1FAE5;
+      --or:         #D4A017;
+      --creme:      #FAF6EF;
+      --blanc:      #FFFFFF;
+      --gris:       #6B7280;
+      --gris-clair: #F3F4F6;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', sans-serif; background: var(--creme); color: var(--vert); min-height: 100vh; }
+
+    header {
+      background: var(--vert); padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px; position: sticky; top: 0; z-index: 1000;
+      box-shadow: 0 2px 16px rgba(27,67,50,0.35);
+    }
+    .logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1.7rem; color: var(--or); letter-spacing: 0.06em; }
+    .logo span { color: rgba(255,255,255,0.55); font-size: 0.65rem; font-weight: 400; display: block; letter-spacing: 0.18em; font-family: 'Inter', sans-serif; margin-top: -3px; }
+    .badge { background: var(--or); color: var(--vert); font-size: 0.65rem; font-weight: 700; padding: 4px 12px; border-radius: 20px; font-family: 'Syne', sans-serif; letter-spacing: 0.1em; }
+
+    .hero {
+      background: linear-gradient(135deg, var(--vert) 0%, var(--vert-moyen) 100%);
+      padding: 3rem 2rem 2.5rem; text-align: center; position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ''; position: absolute; inset: 0;
+      background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+    .hero-content { position: relative; max-width: 650px; margin: 0 auto; }
+    .hero h1 { font-family: 'Syne', sans-serif; font-size: 2.4rem; font-weight: 800; color: var(--blanc); line-height: 1.15; margin-bottom: 0.75rem; }
+    .hero h1 em { color: var(--or); font-style: normal; }
+    .hero p { color: rgba(255,255,255,0.7); font-size: 1rem; font-weight: 300; }
+
+    .main {
+      max-width: 1200px; margin: -1.5rem auto 3rem; padding: 0 1.5rem;
+      display: grid; grid-template-columns: 400px 1fr; gap: 1.5rem; position: relative;
+    }
+    @media (max-width: 900px) { .main { grid-template-columns: 1fr; } .hero h1 { font-size: 1.8rem; } }
+
+    .card {
+      background: var(--blanc); border-radius: 16px; padding: 1.6rem;
+      box-shadow: 0 4px 24px rgba(27,67,50,0.07); border: 1px solid rgba(27,67,50,0.07);
+    }
+    .card-title {
+      font-family: 'Syne', sans-serif; font-size: 0.85rem; font-weight: 700; color: var(--vert);
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 1.2rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .card-title .icon {
+      width: 26px; height: 26px; background: var(--vert); border-radius: 6px;
+      display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0;
+    }
+
+    #carte { width: 100%; height: 320px; border-radius: 12px; border: 1.5px solid rgba(27,67,50,0.15); overflow: hidden; }
+
+    .carte-info {
+      background: var(--vert-clair); border: 1px solid rgba(27,67,50,0.15);
+      border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.82rem; color: var(--vert);
+      margin-top: 0.8rem; display: flex; align-items: center; justify-content: space-between;
+    }
+    .surface-valeur { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.1rem; color: var(--vert); }
+
+    .btn-gps {
+      background: var(--vert); color: var(--or); border: none; border-radius: 8px;
+      padding: 0.5rem 1rem; font-family: 'Syne', sans-serif; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.08em; transition: all 0.2s; margin-bottom: 0.8rem; width: 100%;
+    }
+    .btn-gps:hover:not(:disabled) { background: var(--vert-moyen); }
+    .btn-gps:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .instructions {
+      font-size: 0.78rem; color: var(--gris); line-height: 1.5;
+      background: var(--gris-clair); border-radius: 8px; padding: 0.6rem 0.8rem; margin-bottom: 0.8rem;
+    }
+
+    .form-group { margin-bottom: 0.9rem; }
+    label { display: block; font-size: 0.72rem; font-weight: 500; color: var(--gris); margin-bottom: 0.35rem; letter-spacing: 0.06em; text-transform: uppercase; }
+    input[type="number"], select {
+      width: 100%; padding: 0.65rem 0.9rem; border: 1.5px solid rgba(27,67,50,0.15);
+      border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem;
+      color: var(--vert); background: var(--creme); outline: none; transition: border-color 0.2s;
+    }
+    input[type="number"]:focus, select:focus { border-color: var(--vert); }
+
+    .upload-zone {
+      border: 2px dashed rgba(27,67,50,0.2); border-radius: 10px; padding: 1.5rem 1rem;
+      text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+      background: rgba(27,67,50,0.02); margin-bottom: 1rem;
+    }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--vert); background: var(--vert-clair); }
+    .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-icon { font-size: 1.8rem; margin-bottom: 0.4rem; }
+    .upload-text { font-family: 'Syne', sans-serif; font-weight: 600; color: var(--vert); font-size: 0.9rem; }
+    .upload-hint { font-size: 0.72rem; color: var(--gris); }
+    #preview-container { margin-bottom: 1rem; display: none; }
+    #preview-img { width: 100%; border-radius: 8px; max-height: 160px; object-fit: cover; }
+
+    .btn-analyser {
+      width: 100%; padding: 0.9rem; background: var(--vert); color: var(--or); border: none;
+      border-radius: 10px; font-family: 'Syne', sans-serif; font-size: 0.95rem; font-weight: 700;
+      letter-spacing: 0.1em; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-analyser:hover:not(:disabled) { background: var(--vert-moyen); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(27,67,50,0.25); }
+    .btn-analyser:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .spinner {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid rgba(212,160,23,0.3); border-top-color: var(--or);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      margin-right: 8px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .statut-bar { border-radius: 10px; padding: 0.9rem 1.1rem; margin-bottom: 1.2rem; display: flex; align-items: center; gap: 0.7rem; }
+    .statut-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+    .statut-message { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 0.9rem; }
+
+    .metriques { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem; margin-bottom: 1.2rem; }
+    .metrique { background: var(--creme); border-radius: 10px; padding: 0.8rem 0.9rem; border: 1px solid rgba(27,67,50,0.08); }
+    .metrique-label { font-size: 0.65rem; color: var(--gris); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; }
+    .metrique-valeur { font-family: 'Syne', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--vert); }
+    .metrique-unite { font-size: 0.7rem; color: var(--gris); }
+    .metrique.highlight { background: var(--vert); border-color: var(--vert); }
+    .metrique.highlight .metrique-label { color: rgba(255,255,255,0.55); }
+    .metrique.highlight .metrique-valeur { color: var(--or); }
+    .metrique.highlight .metrique-unite { color: rgba(255,255,255,0.55); }
+
+    .qualite-section { margin-bottom: 1.2rem; }
+    .qualite-header { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--gris); margin-bottom: 0.4rem; }
+    .qualite-bar-bg { height: 8px; background: rgba(27,67,50,0.1); border-radius: 4px; overflow: hidden; }
+    .qualite-bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; background: linear-gradient(90deg, var(--or), #22c55e); }
+
+    .action-card { background: linear-gradient(135deg, var(--vert), var(--vert-moyen)); border-radius: 12px; padding: 1.1rem; }
+    .action-label { font-size: 0.65rem; color: var(--or); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; margin-bottom: 0.35rem; }
+    .action-texte { font-size: 0.85rem; line-height: 1.5; color: rgba(255,255,255,0.85); }
+
+    .placeholder { text-align: center; padding: 3rem 1rem; color: var(--gris); }
+    .placeholder-icon { font-size: 2.5rem; margin-bottom: 0.8rem; opacity: 0.3; }
+    .placeholder-text { font-size: 0.85rem; line-height: 1.5; }
+
+    .erreur { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 0.8rem; color: #DC2626; font-size: 0.85rem; margin-bottom: 0.8rem; display: none; }
+
+    #resultats { display: none; }
+
+    footer { text-align: center; padding: 1.5rem; color: var(--gris); font-size: 0.75rem; border-top: 1px solid rgba(27,67,50,0.08); }
+    footer strong { color: var(--vert); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">NEXA<span>SMART GRAZING PLATFORM</span></div>
+  <div class="badge">MVP DEMO v1.0</div>
+</header>
+
+<div class="hero">
+  <div class="hero-content">
+    <h1>Estimez la <em>biomasse</em><br/>de vos pâturages en un clic</h1>
+    <p>Tracez votre zone sur la carte · Uploadez une photo · Obtenez le plan de rotation</p>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- COLONNE GAUCHE -->
+  <div style="display:flex; flex-direction:column; gap:1.5rem;">
+
+    <!-- CARTE -->
+    <div class="card">
+      <div class="card-title"><div class="icon">🗺️</div>Délimiter la zone</div>
+      <button class="btn-gps" id="btn-gps" onclick="centrerGPS()">📍 Centrer sur ma position GPS</button>
+      <div class="instructions">
+        <strong>Mode nomade :</strong> Dessine ta zone à chaque nouveau pâturage<br/>
+        <strong>Mode sédentaire :</strong> Dessine ta zone une fois, réutilise-la<br/>
+        Utilise l'outil ✏️ dans la barre gauche de la carte pour dessiner
+      </div>
+      <div id="carte"></div>
+      <div class="carte-info">
+        <span>Surface délimitée</span>
+        <span><span class="surface-valeur" id="surface-affichage">Non tracée</span>&nbsp;<span style="font-size:0.75rem;color:var(--gris);" id="unite-ha"></span></span>
+      </div>
+    </div>
+
+    <!-- PHOTO + FORMULAIRE -->
+    <div class="card">
+      <div class="card-title"><div class="icon">📷</div>Photo du pâturage</div>
+
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" id="fichier-photo" accept="image/*"/>
+        <div class="upload-icon">🌿</div>
+        <div class="upload-text">Choisir une photo</div>
+        <div class="upload-hint">JPG ou PNG — Photo de l'herbe au sol</div>
+      </div>
+
+      <div id="preview-container">
+        <img id="preview-img" src="" alt="Aperçu"/>
+      </div>
+
+      <div class="form-group">
+        <label>Nombre d'animaux</label>
+        <input type="number" id="taille-troupeau" value="50" min="1"/>
+      </div>
+      <div class="form-group">
+        <label>Espèce animale</label>
+        <select id="espece">
+          <option value="Vache">Vache</option>
+          <option value="Mouton" selected>Mouton</option>
+          <option value="Chèvre">Chèvre</option>
+          <option value="Chameau">Chameau</option>
+        </select>
+      </div>
+
+      <div class="erreur" id="erreur-msg">⚠️ <span id="erreur-texte"></span></div>
+      <button class="btn-analyser" id="btn-analyser" onclick="analyser()" disabled>Analyser le pâturage</button>
+    </div>
+  </div>
+
+  <!-- COLONNE DROITE : RÉSULTATS -->
+  <div class="card" style="align-self:start; position:sticky; top:80px;">
+    <div class="card-title"><div class="icon">📊</div>Résultats & Plan de rotation</div>
+
+    <div class="placeholder" id="placeholder">
+      <div class="placeholder-icon">🌾</div>
+      <div class="placeholder-text">
+        Tracez votre zone sur la carte,<br/>
+        uploadez une photo et cliquez sur<br/>
+        <strong>Analyser le pâturage</strong>
+      </div>
+    </div>
+
+    <div id="resultats">
+      <div class="statut-bar" id="statut-bar">
+        <div class="statut-dot" id="statut-dot"></div>
+        <div class="statut-message" id="statut-message"></div>
+      </div>
+
+      <div class="metriques">
+        <div class="metrique highlight">
+          <div class="metrique-label">GDM — Biomasse verte</div>
+          <div class="metrique-valeur" id="val-gdm">—</div>
+          <div class="metrique-unite">g / m²</div>
+        </div>
+        <div class="metrique highlight">
+          <div class="metrique-label">Jours disponibles</div>
+          <div class="metrique-valeur" id="val-jours">—</div>
+          <div class="metrique-unite">pour le troupeau</div>
+        </div>
+        <div class="metrique">
+          <div class="metrique-label">Végétation verte</div>
+          <div class="metrique-valeur" id="val-green">—</div>
+          <div class="metrique-unite">g / m²</div>
+        </div>
+        <div class="metrique">
+          <div class="metrique-label">Trèfle</div>
+          <div class="metrique-valeur" id="val-clover">—</div>
+          <div class="metrique-unite">g / m²</div>
+        </div>
+        <div class="metrique">
+          <div class="metrique-label">Matière morte</div>
+          <div class="metrique-valeur" id="val-dead">—</div>
+          <div class="metrique-unite">g / m²</div>
+        </div>
+        <div class="metrique">
+          <div class="metrique-label">Surface tracée</div>
+          <div class="metrique-valeur" id="val-surface">—</div>
+          <div class="metrique-unite">hectares réels</div>
+        </div>
+      </div>
+
+      <div class="qualite-section">
+        <div class="qualite-header">
+          <span>Qualité du pâturage</span>
+          <span id="val-qualite">—%</span>
+        </div>
+        <div class="qualite-bar-bg">
+          <div class="qualite-bar-fill" id="qualite-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <div class="action-card">
+        <div class="action-label">📋 Action recommandée</div>
+        <div class="action-texte" id="action-texte">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <strong>NEXA</strong> — Plateforme de gestion pastorale intelligente &nbsp;·&nbsp;
+  Hackathon Franco-Africain 2025 &nbsp;·&nbsp;
+  Modèle EfficientNet-B2 · Carte OpenStreetMap
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+  let surfaceHa = 0;
+  let polygoneActuel = null;
+
+  // Carte centrée sur le Sahel par défaut
+  const carte = L.map('carte').setView([14.5, 2.0], 5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 19
+  }).addTo(carte);
+
+  const coucheDessin = new L.FeatureGroup();
+  carte.addLayer(coucheDessin);
+
+  const controleDessin = new L.Control.Draw({
+    edit: { featureGroup: coucheDessin },
+    draw: {
+      polygon:   { shapeOptions: { color: '#1B4332', fillColor: '#D1FAE5', fillOpacity: 0.4 } },
+      rectangle: { shapeOptions: { color: '#1B4332', fillColor: '#D1FAE5', fillOpacity: 0.4 } },
+      circle: false, marker: false, polyline: false, circlemarker: false,
+    }
+  });
+  carte.addControl(controleDessin);
+
+  carte.on(L.Draw.Event.CREATED, function(e) {
+    coucheDessin.clearLayers();
+    coucheDessin.addLayer(e.layer);
+    polygoneActuel = e.layer;
+    calculerSurface(e.layer);
+  });
+
+  carte.on(L.Draw.Event.EDITED, function(e) {
+    e.layers.eachLayer(layer => calculerSurface(layer));
+  });
+
+  carte.on(L.Draw.Event.DELETED, function() {
+    surfaceHa = 0;
+    polygoneActuel = null;
+    document.getElementById('surface-affichage').textContent = 'Non tracée';
+    document.getElementById('unite-ha').textContent = '';
+  });
+
+  function calculerSurface(layer) {
+    const latlngs = layer.getLatLngs()[0];
+    const m2 = calculerAirePolygone(latlngs);
+    surfaceHa = m2 / 10000;
+    document.getElementById('surface-affichage').textContent = surfaceHa.toFixed(2);
+    document.getElementById('unite-ha').textContent = 'ha';
+  }
+
+  function calculerAirePolygone(pts) {
+    const R = 6371000;
+    let aire = 0;
+    const n = pts.length;
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const xi = pts[i].lng * Math.PI / 180 * R * Math.cos(pts[i].lat * Math.PI / 180);
+      const yi = pts[i].lat * Math.PI / 180 * R;
+      const xj = pts[j].lng * Math.PI / 180 * R * Math.cos(pts[j].lat * Math.PI / 180);
+      const yj = pts[j].lat * Math.PI / 180 * R;
+      aire += xi * yj - xj * yi;
+    }
+    return Math.abs(aire / 2);
+  }
+
+  function centrerGPS() {
+    if (!navigator.geolocation) { alert("Géolocalisation non supportée."); return; }
+    const btn = document.getElementById('btn-gps');
+    btn.textContent = '⏳ Localisation...';
+    btn.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        carte.setView([pos.coords.latitude, pos.coords.longitude], 14);
+        L.marker([pos.coords.latitude, pos.coords.longitude])
+          .addTo(carte)
+          .bindPopup('<strong>Votre position</strong><br/>Dessinez votre zone autour de ce point.')
+          .openPopup();
+        btn.textContent = '✅ Position détectée';
+        btn.disabled = false;
+      },
+      () => {
+        alert("GPS non disponible. Naviguez manuellement sur la carte.");
+        btn.textContent = '📍 Centrer sur ma position GPS';
+        btn.disabled = false;
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }
+
+  // Upload photo
+  const inputFichier = document.getElementById('fichier-photo');
+  inputFichier.addEventListener('change', function() {
+    const f = this.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('preview-container').style.display = 'block';
+      document.getElementById('erreur-msg').style.display = 'none';
+      document.getElementById('btn-analyser').disabled = false;
+    };
+    reader.readAsDataURL(f);
+  });
+
+  const uploadZone = document.getElementById('upload-zone');
+  uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+  uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+  uploadZone.addEventListener('drop', e => {
+    e.preventDefault(); uploadZone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) {
+      inputFichier.files = e.dataTransfer.files;
+      inputFichier.dispatchEvent(new Event('change'));
+    }
+  });
+
+  // Analyse
+  async function analyser() {
+    const fichier = inputFichier.files[0];
+    if (!fichier) return;
+
+    const btn = document.getElementById('btn-analyser');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Analyse en cours...';
+    document.getElementById('erreur-msg').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('file', fichier);
+    formData.append('taille_troupeau', document.getElementById('taille-troupeau').value);
+    formData.append('espece', document.getElementById('espece').value);
+    formData.append('surface_ha', surfaceHa > 0 ? surfaceHa : 0);
+
+    try {
+      const rep = await fetch('/analyser', { method: 'POST', body: formData });
+      const data = await rep.json();
+      if (!data.succes) throw new Error(data.erreur || 'Erreur inconnue');
+      afficherResultats(data);
+
+      // Colorer le polygone selon le statut
+      if (polygoneActuel) {
+        const couleurs = { excellent: '#22c55e', bon: '#f59e0b', attention: '#f97316', critique: '#ef4444' };
+        const c = couleurs[data.plan.statut] || '#1B4332';
+        polygoneActuel.setStyle({ color: c, fillColor: c, fillOpacity: 0.3 });
+      }
+    } catch (err) {
+      document.getElementById('erreur-texte').textContent = err.message;
+      document.getElementById('erreur-msg').style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Analyser le pâturage';
+    }
+  }
+
+  function afficherResultats(data) {
+    const { biomasse, plan, troupeau } = data;
+    document.getElementById('placeholder').style.display = 'none';
+    document.getElementById('resultats').style.display = 'block';
+
+    const sb = document.getElementById('statut-bar');
+    sb.style.background = plan.couleur + '18';
+    sb.style.border = `1px solid ${plan.couleur}30`;
+    document.getElementById('statut-dot').style.background = plan.couleur;
+    document.getElementById('statut-message').textContent = plan.message;
+    document.getElementById('statut-message').style.color = plan.couleur;
+
+    document.getElementById('val-gdm').textContent    = biomasse.gdm_g.toFixed(1);
+    document.getElementById('val-jours').textContent  = plan.jours_disponibles;
+    document.getElementById('val-green').textContent  = biomasse.vegetation_verte_g.toFixed(1);
+    document.getElementById('val-clover').textContent = biomasse.trefle_g.toFixed(1);
+    document.getElementById('val-dead').textContent   = biomasse.matiere_morte_g.toFixed(1);
+    document.getElementById('val-surface').textContent = surfaceHa > 0 ? surfaceHa.toFixed(2) : '78.5 (défaut)';
+
+    const q = biomasse.qualite_pourcent;
+    document.getElementById('val-qualite').textContent = q + '%';
+    setTimeout(() => { document.getElementById('qualite-fill').style.width = q + '%'; }, 100);
+    document.getElementById('action-texte').textContent = plan.action;
+  }
+</script>
+</body>
+</html>
