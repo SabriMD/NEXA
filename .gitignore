@@ -1,8 +1,3 @@
-# Modèles trop lourds pour GitHub
-modeles/*.pth
-modeles/*.onnx
-modeles/nexa_biomasse_tf_savedmodel/
-modeles/*.data
 # Python
 __pycache__/
 *.pyc

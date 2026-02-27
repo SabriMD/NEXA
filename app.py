@@ -11,8 +11,6 @@ import onnxruntime as ort
 import numpy as np
 from PIL import Image
 import io
-from download_model import telecharger_modele
-telecharger_modele()  # ← avant le chargement ONNX
 
 # ============================================================
 # INITIALISATION
